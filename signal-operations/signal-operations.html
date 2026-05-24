@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Convolution &amp; Correlation Explorer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css">
+<style>
+  :root {
+    --color-background-primary:#ffffff;
+    --color-background-secondary:#f4f3ee;
+    --color-background-tertiary:#ebe9e0;
+    --color-background-info:#e6f1fb;
+    --color-text-primary:#1f1f1d;
+    --color-text-secondary:#5f5e5a;
+    --color-text-tertiary:#8d8c85;
+    --color-text-info:#185fa5;
+    --color-border-tertiary:rgba(0,0,0,0.12);
+    --color-border-secondary:rgba(0,0,0,0.28);
+    --color-border-info:#85b7eb;
+    --border-radius-md:8px;
+    --border-radius-lg:12px;
+    --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --color-background-primary:#1f1f1d;
+      --color-background-secondary:#2b2b28;
+      --color-background-tertiary:#26261f;
+      --color-background-info:#0c2740;
+      --color-text-primary:#ecebe4;
+      --color-text-secondary:#a8a79f;
+      --color-text-tertiary:#76756e;
+      --color-text-info:#85b7eb;
+      --color-border-tertiary:rgba(255,255,255,0.14);
+      --color-border-secondary:rgba(255,255,255,0.3);
+      --color-border-info:#185fa5;
+    }
+  }
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--color-background-tertiary);
+    font-family:var(--font-sans);
+    color:var(--color-text-primary);
+    -webkit-font-smoothing:antialiased;
+  }
+  .ti{font-family:"tabler-icons"!important;}
+  #widget-root{
+    max-width:680px;
+    margin:0 auto;
+    padding:24px 20px 48px;
+    box-sizing:border-box;
+  }
+  #widget-root h1{
+    font-size:20px;font-weight:500;margin:0 0 4px;
+  }
+  #widget-root .sub{
+    font-size:13px;color:var(--color-text-secondary);margin:0 0 20px;
+  }
+  button{
+    font-family:var(--font-sans);
+    background:transparent;
+    border:0.5px solid var(--color-border-secondary);
+    color:var(--color-text-primary);
+    transition:background .15s;
+  }
+  button:hover{background:var(--color-background-secondary);}
+  button:active{transform:scale(0.98);}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;
+    height:4px;border-radius:2px;
+    background:var(--color-border-secondary);
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:18px;height:18px;border-radius:50%;
+    background:var(--color-text-info);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:18px;height:18px;border:none;border-radius:50%;
+    background:var(--color-text-info);cursor:pointer;
+  }
+  .ts{font-family:var(--font-sans);font-size:12px;fill:var(--color-text-secondary);}
+</style>
+</head>
+<body>
+<div id="widget-root">
+<h1>Convolution &amp; Correlation Explorer</h1>
+<p class="sub">Drag the shift to slide one signal over the other. Highlighted cells show which samples enter the sum.</p>
+
+<div style="padding:0.5rem 0;">
+
+  <div style="display:flex; gap:8px; margin:0 0 1rem; flex-wrap:wrap;">
+    <button id="mode-conv" onclick="setMode('conv')" style="flex:1; min-width:160px; padding:9px 12px; border-radius:var(--border-radius-md); cursor:pointer; font-size:14px;"><span style="font-weight:500;">Convolution</span></button>
+    <button id="mode-xcorr" onclick="setMode('xcorr')" style="flex:1; min-width:160px; padding:9px 12px; border-radius:var(--border-radius-md); cursor:pointer; font-size:14px;"><span style="font-weight:500;">Cross-correlation</span></button>
+    <button id="mode-acorr" onclick="setMode('acorr')" style="flex:1; min-width:160px; padding:9px 12px; border-radius:var(--border-radius-md); cursor:pointer; font-size:14px;"><span style="font-weight:500;">Auto-correlation</span></button>
+  </div>
+
+  <div style="margin:0 0 0.85rem;">
+    <div style="font-size:12px; color:var(--color-text-secondary); margin:0 0 5px;">x[n] &#8212; fixed signal</div>
+    <div id="arr-x" style="display:flex; gap:3px; flex-wrap:wrap;"></div>
+  </div>
+  <div style="margin:0 0 1rem;">
+    <div id="h-label" style="font-size:12px; color:var(--color-text-secondary); margin:0 0 5px;">h[n] &#8212; kernel</div>
+    <div id="arr-h" style="display:flex; gap:3px; flex-wrap:wrap;"></div>
+  </div>
+
+  <div id="formula" style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:0.7rem 0.9rem; margin:0 0 1rem; font-family:var(--font-mono); font-size:13px; line-height:1.8; color:var(--color-text-primary); overflow-x:auto;"></div>
+
+  <svg width="100%" viewBox="0 0 680 326" role="img" id="stage">
+    <title>Aligned view of x, the flipped-shifted kernel, their product terms, and the output sequence</title>
+    <desc>Each row is aligned by sample index. The product row shows x times the shifted kernel; the output row plots y over all shifts.</desc>
+    <line x1="40" y1="66"  x2="640" y2="66"  stroke="var(--color-border-tertiary)" stroke-width="0.5"/>
+    <line x1="40" y1="150" x2="640" y2="150" stroke="var(--color-border-tertiary)" stroke-width="0.5"/>
+    <line x1="40" y1="292" x2="640" y2="292" stroke="var(--color-border-tertiary)" stroke-width="0.5"/>
+    <text class="ts" x="40" y="26" id="lbl-slide">h[k&#8722;n] aligned to x</text>
+    <text class="ts" x="40" y="110" id="lbl-prod">product terms</text>
+    <text class="ts" x="40" y="190" id="lbl-out">y[k] &#8212; full output</text>
+    <g id="overlap-band"></g>
+    <g id="slide-bars"></g>
+    <g id="prod-bars"></g>
+    <g id="edge-tags"></g>
+    <g id="output-stems"></g>
+    <line id="cursor" x1="0" y1="200" x2="0" y2="300" stroke="var(--color-text-info)" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.75"/>
+    <g id="output-axis"></g>
+  </svg>
+
+  <div style="display:flex; align-items:center; gap:12px; margin:0.5rem 0 0;">
+    <label style="font-size:13px; color:var(--color-text-secondary); min-width:62px;">Shift k</label>
+    <input type="range" id="shift" min="-12" max="24" step="1" value="0" style="flex:1;" oninput="onShift(this.value)"/>
+    <span id="shift-out" style="font-size:14px; font-weight:500; min-width:30px; text-align:right;">0</span>
+    <button id="play" onclick="togglePlay()" style="padding:7px 12px; border-radius:var(--border-radius-md); cursor:pointer; font-size:13px; white-space:nowrap;"><i class="ti ti-player-play" aria-hidden="true"></i> Sweep</button>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:10px; margin:1.1rem 0 0;">
+    <div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:0.75rem 0.9rem;">
+      <p style="font-size:12px; color:var(--color-text-secondary); margin:0 0 3px;" id="lbl-y">y[k]</p>
+      <p id="stat-current" style="font-size:22px; font-weight:500; margin:0; font-family:var(--font-mono);">0</p>
+    </div>
+    <div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:0.75rem 0.9rem;">
+      <p style="font-size:12px; color:var(--color-text-secondary); margin:0 0 3px;" id="peak-label">Peak |y|</p>
+      <p id="stat-peak" style="font-size:22px; font-weight:500; margin:0; font-family:var(--font-mono);">0</p>
+    </div>
+    <div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:0.75rem 0.9rem;">
+      <p style="font-size:12px; color:var(--color-text-secondary); margin:0 0 3px;" id="best-label">Peak at k</p>
+      <p id="stat-best" style="font-size:22px; font-weight:500; margin:0; font-family:var(--font-mono);">0</p>
+    </div>
+    <div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:0.75rem 0.9rem;">
+      <p style="font-size:12px; color:var(--color-text-secondary); margin:0 0 3px;">Nonzero terms</p>
+      <p id="stat-taps" style="font-size:22px; font-weight:500; margin:0; font-family:var(--font-mono);">0</p>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:14px; margin:1rem 0 0; flex-wrap:wrap; align-items:center;">
+    <div style="display:flex; gap:6px; align-items:center;">
+      <span style="font-size:13px; color:var(--color-text-secondary);">Signals:</span>
+      <button onclick="setData('fir')" id="d-fir" style="padding:5px 11px; border-radius:var(--border-radius-md); cursor:pointer; font-size:13px;">FIR filter</button>
+      <button onclick="setData('match')" id="d-match" style="padding:5px 11px; border-radius:var(--border-radius-md); cursor:pointer; font-size:13px;">Template</button>
+      <button onclick="setData('noise')" id="d-noise" style="padding:5px 11px; border-radius:var(--border-radius-md); cursor:pointer; font-size:13px;">In noise</button>
+    </div>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <span style="font-size:13px; color:var(--color-text-secondary);">Edges:</span>
+      <button onclick="setEdge('zero')" id="e-zero" style="padding:5px 11px; border-radius:var(--border-radius-md); cursor:pointer; font-size:13px;">Zero-pad</button>
+      <button onclick="setEdge('circ')" id="e-circ" style="padding:5px 11px; border-radius:var(--border-radius-md); cursor:pointer; font-size:13px;">Circular</button>
+    </div>
+  </div>
+
+  <p id="edge-note" style="font-size:12px; color:var(--color-text-secondary); line-height:1.6; margin:0.8rem 0 0;"></p>
+  <p id="window-note" style="font-size:12px; color:var(--color-text-tertiary); line-height:1.6; margin:0.5rem 0 0;"></p>
+
+</div>
+</div>
+
+<script>
+(function(){
+  var SVGNS="http://www.w3.org/2000/svg";
+  var N=13, x0=60, slot=44;
+  var rowG=150, rowP=292, rowO=200, maxBar=36, stemMax=58;
+
+  var datasets={
+    fir:   { x:[0,0,1,3,6,8,6,3,1,0,0,0,0], h:[0,0,0,0,0,2,3,2,0,0,0,0,0] },
+    match: { x:[1,0,2,1,4,7,4,1,0,3,1,0,2], h:[0,0,0,0,0,3,6,3,0,0,0,0,0] },
+    noise: { x:[2,-3,3,1,-2,8,6,8,-3,2,-4,1,2], h:[0,0,0,0,0,5,6,5,0,0,0,0,0] }
+  };
+  var state={ mode:"conv", shift:0, data:"fir", edge:"zero", playing:false, timer:null };
+  var x=[], h=[];
+
+  function curveCol(){ return state.mode==="conv"?"#534AB7":"#0F6E56"; }
+  function clone(a){ return a.slice(); }
+
+  function sampleH(idx){
+    if(idx>=0&&idx<N) return h[idx];
+    if(state.edge==="circ") return h[((idx%N)+N)%N];
+    return 0;
+  }
+  function sampleX(idx){
+    if(idx>=0&&idx<N) return x[idx];
+    if(state.edge==="circ") return x[((idx%N)+N)%N];
+    return 0;
+  }
+  function hIndexAt(n,k){ return state.mode==="conv"?(k-n):(n-k); }
+
+  function sumRange(){
+    return state.edge==="circ" ? {lo:0,hi:N-1} : {lo:-N,hi:2*N};
+  }
+  function outputAt(k){
+    var r=sumRange(), s=0;
+    for(var n=r.lo;n<=r.hi;n++) s+=sampleX(n)*sampleH(hIndexAt(n,k));
+    return s;
+  }
+  function activeTerms(k){
+    var r=sumRange(), out=[];
+    for(var n=r.lo;n<=r.hi;n++){
+      var xv=sampleX(n), hv=sampleH(hIndexAt(n,k));
+      if(xv!==0 && hv!==0) out.push({n:n,xv:xv,hv:hv,inWin:(n>=0&&n<N)});
+    }
+    return out;
+  }
+  function fullOutput(){
+    var a=[]; for(var k=-12;k<=24;k++) a.push({k:k,v:outputAt(k)}); return a;
+  }
+  function fmt(v){
+    var r=Math.round(v*10)/10;
+    return (Math.abs(r-Math.round(r))<0.05)?String(Math.round(r)):r.toFixed(1);
+  }
+
+  function bar(parent,cx,baseline,val,color,opacity){
+    var hh=Math.abs(val)/9*maxBar;
+    if(hh<0.8) hh=(val===0?0:0.8);
+    var r=document.createElementNS(SVGNS,"rect");
+    r.setAttribute("x",cx-13); r.setAttribute("width",26);
+    r.setAttribute("y",val>=0?baseline-hh:baseline);
+    r.setAttribute("height",Math.max(hh,0.5));
+    r.setAttribute("rx",2); r.setAttribute("fill",color); r.setAttribute("opacity",opacity);
+    parent.appendChild(r);
+  }
+  function txt(parent,X,Y,str,cls,anchor){
+    var t=document.createElementNS(SVGNS,"text");
+    t.setAttribute("x",X); t.setAttribute("y",Y); t.setAttribute("class",cls||"ts");
+    if(anchor) t.setAttribute("text-anchor",anchor);
+    t.textContent=str; parent.appendChild(t);
+  }
+  function clr(id){ var e=document.getElementById(id); while(e.firstChild) e.removeChild(e.firstChild); }
+
+  function renderArrays(){
+    var k=state.shift;
+    var ax=document.getElementById("arr-x");
+    var ah=document.getElementById("arr-h");
+    ax.innerHTML=""; ah.innerHTML="";
+    var terms=activeTerms(k);
+    var activeXn={}, activeHidx={};
+    terms.forEach(function(t){
+      activeXn[t.n]=true;
+      activeHidx[hIndexAt(t.n,k)]=true;
+    });
+    for(var i=0;i<N;i++){
+      ax.appendChild(cell(i,x[i],activeXn[i],"#185FA5"));
+      ah.appendChild(cell(i,h[i],activeHidx[i],curveCol()));
+    }
+  }
+  function cell(idx,val,active,accent){
+    var d=document.createElement("div");
+    d.style.cssText="width:42px;text-align:center;border-radius:6px;padding:3px 0;"+
+      "border:0.5px solid "+(active?accent:"var(--color-border-tertiary)")+";"+
+      "background:"+(active?"var(--color-background-info)":"var(--color-background-primary)")+";";
+    var iv=document.createElement("div");
+    iv.style.cssText="font-size:10px;color:var(--color-text-tertiary);font-family:var(--font-mono);";
+    iv.textContent=idx;
+    var vv=document.createElement("div");
+    vv.style.cssText="font-size:13px;font-family:var(--font-mono);font-weight:"+(active?"500":"400")+";"+
+      "color:"+(active?accent:(val===0?"var(--color-text-tertiary)":"var(--color-text-primary)"))+";";
+    vv.textContent=val;
+    d.appendChild(iv); d.appendChild(vv);
+    return d;
+  }
+
+  function buildFormula(){
+    var k=state.shift, terms=activeTerms(k);
+    var sym=state.mode==="conv"?"y":"r";
+    var def=state.mode==="conv"?"y[k] = \u03a3\u2099 x[n]\u00b7h[k\u2212n]"
+      :state.mode==="xcorr"?"r[k] = \u03a3\u2099 x[n]\u00b7h[n\u2212k]"
+      :"r[k] = \u03a3\u2099 x[n]\u00b7x[n\u2212k]";
+    var pieces=terms.map(function(t){
+      var s=fmt(t.xv)+"\u00b7"+fmt(t.hv);
+      return t.inWin?s:"<span style='color:var(--color-text-tertiary)'>"+s+"\u00b9</span>";
+    });
+    var body=(terms.length?pieces.join(" + "):"0")+" = "+fmt(outputAt(k));
+    var hasOff=terms.some(function(t){return !t.inWin;});
+    document.getElementById("formula").innerHTML=
+      "<span style='color:var(--color-text-secondary)'>"+def+"</span><br>"+
+      "<span>"+sym+"["+(k>0?"+":"")+k+"] = "+body+"</span>"+
+      (hasOff?"<br><span style='font-size:11px;color:var(--color-text-tertiary)'>\u00b9 term from a sample outside the 0\u201312 window</span>":"");
+  }
+
+  function render(){
+    ["slide-bars","prod-bars","edge-tags","output-stems","output-axis","overlap-band"].forEach(clr);
+    var k=state.shift;
+    var sb=document.getElementById("slide-bars"),
+        pb=document.getElementById("prod-bars"),
+        ob=document.getElementById("overlap-band"),
+        et=document.getElementById("edge-tags");
+
+    for(var i=0;i<N;i++){
+      var cx=x0+i*slot;
+      var hv=sampleH(hIndexAt(i,k));
+      var xv=x[i];
+      if(hv!==0&&xv!==0){
+        var band=document.createElementNS(SVGNS,"rect");
+        band.setAttribute("x",cx-19); band.setAttribute("y",10);
+        band.setAttribute("width",38); band.setAttribute("height",282);
+        band.setAttribute("fill","var(--color-text-info)");
+        band.setAttribute("opacity","0.08"); band.setAttribute("rx",4);
+        ob.appendChild(band);
+      }
+      bar(sb,cx,rowG,hv,curveCol(),0.8);
+      bar(pb,cx,rowP,xv*hv,"#BA7517",0.9);
+    }
+
+    var terms=activeTerms(k), offLo=0, offHi=0;
+    terms.forEach(function(t){ if(!t.inWin){ if(t.n<0)offLo++; else offHi++; } });
+    if(offLo>0){
+      txt(et,x0-30,rowG+2,"\u25c0 "+offLo,"ts","middle");
+      txt(et,x0-30,rowG+18,"off","ts","middle");
+    }
+    if(offHi>0){
+      txt(et,x0+(N-1)*slot+30,rowG+2,offHi+" \u25b6","ts","middle");
+      txt(et,x0+(N-1)*slot+30,rowG+18,"off","ts","middle");
+    }
+
+    var full=fullOutput();
+    var peak=full.reduce(function(a,b){return Math.abs(b.v)>Math.abs(a.v)?b:a;},full[0]);
+    var maxAbs=Math.abs(peak.v)||1;
+    var os=document.getElementById("output-stems"),
+        oa=document.getElementById("output-axis");
+    var ax1=80, ax2=600, kmin=-12, kmax=24;
+
+    full.forEach(function(d){
+      var px=ax1+(d.k-kmin)/(kmax-kmin)*(ax2-ax1);
+      var py=rowO+stemMax-(d.v/maxAbs)*stemMax;
+      var base=rowO+stemMax;
+      var active=d.k===k;
+      var stem=document.createElementNS(SVGNS,"line");
+      stem.setAttribute("x1",px); stem.setAttribute("x2",px);
+      stem.setAttribute("y1",base); stem.setAttribute("y2",py);
+      stem.setAttribute("stroke",curveCol());
+      stem.setAttribute("stroke-width",active?2.5:1);
+      stem.setAttribute("opacity",active?1:0.4);
+      os.appendChild(stem);
+      var c=document.createElementNS(SVGNS,"circle");
+      c.setAttribute("cx",px); c.setAttribute("cy",py);
+      c.setAttribute("r",active?4.5:2.2);
+      c.setAttribute("fill",active?curveCol():"var(--color-background-primary)");
+      c.setAttribute("stroke",curveCol()); c.setAttribute("stroke-width",1.4);
+      os.appendChild(c);
+      if(active){
+        var cur=document.getElementById("cursor");
+        cur.setAttribute("x1",px); cur.setAttribute("x2",px);
+      }
+    });
+    var zeroPx=ax1+(0-kmin)/(kmax-kmin)*(ax2-ax1);
+    txt(oa,zeroPx,318,"0","ts","middle");
+    txt(oa,ax1,318,"\u221212","ts","middle");
+    txt(oa,ax2,318,"+24","ts","middle");
+
+    document.getElementById("stat-current").textContent=fmt(outputAt(k));
+    document.getElementById("stat-peak").textContent=fmt(peak.v);
+    document.getElementById("stat-best").textContent=(peak.k>0?"+":"")+peak.k;
+    document.getElementById("stat-taps").textContent=String(terms.length);
+
+    var totalOff=offLo+offHi;
+    document.getElementById("window-note").textContent= totalOff>0
+      ? "Note: "+totalOff+" term"+(totalOff>1?"s come":" comes")+" from samples outside the 0\u201312 window (marked \u25c0/\u25b6). They are still part of y[k] \u2014 the window is a viewport, not the summation range."
+      : "All contributing terms are inside the visible window at this shift.";
+
+    renderArrays();
+    buildFormula();
+  }
+
+  window.onShift=function(v){
+    state.shift=parseInt(v,10);
+    document.getElementById("shift-out").textContent=(state.shift>0?"+":"")+state.shift;
+    render();
+  };
+  window.togglePlay=function(){
+    state.playing=!state.playing;
+    var btn=document.getElementById("play");
+    if(state.playing){
+      btn.innerHTML='<i class="ti ti-player-pause" aria-hidden="true"></i> Pause';
+      state.timer=setInterval(function(){
+        var nx=state.shift+1; if(nx>24) nx=-12;
+        document.getElementById("shift").value=nx; onShift(nx);
+      },260);
+    }else{
+      btn.innerHTML='<i class="ti ti-player-play" aria-hidden="true"></i> Sweep';
+      clearInterval(state.timer);
+    }
+  };
+  window.setMode=function(m){
+    state.mode=m;
+    [["conv","mode-conv"],["xcorr","mode-xcorr"],["acorr","mode-acorr"]].forEach(function(p){
+      var el=document.getElementById(p[1]), on=p[0]===m;
+      el.style.background=on?"var(--color-background-info)":"transparent";
+      el.style.color=on?"var(--color-text-info)":"var(--color-text-secondary)";
+      el.style.border="0.5px solid "+(on?"var(--color-border-info)":"var(--color-border-secondary)");
+    });
+    if(m==="acorr") h=clone(x); else h=clone(datasets[state.data].h);
+    document.getElementById("h-label").textContent=
+      m==="acorr"?"h[n] = x[n] \u2014 same signal":"h[n] \u2014 kernel";
+    document.getElementById("lbl-slide").textContent=
+      m==="conv"?"h[k\u2212n] aligned to x  (flipped + shifted)"
+      :m==="xcorr"?"h[n\u2212k] aligned to x  (shifted only)"
+      :"x[n\u2212k] aligned to x  (shifted only)";
+    document.getElementById("lbl-out").textContent=
+      m==="conv"?"y[k] \u2014 full output":"r[k] \u2014 correlation vs lag";
+    document.getElementById("lbl-y").textContent=m==="conv"?"y[k]":"r[k]";
+    document.getElementById("peak-label").textContent=m==="conv"?"Peak |y|":"Peak |r|";
+    document.getElementById("best-label").textContent=m==="conv"?"Peak at k":"Best lag k";
+    render();
+  };
+  window.setData=function(name){
+    state.data=name;
+    x=clone(datasets[name].x);
+    h=state.mode==="acorr"?clone(x):clone(datasets[name].h);
+    ["fir","match","noise"].forEach(function(d){
+      var el=document.getElementById("d-"+d), on=d===name;
+      el.style.background=on?"var(--color-background-secondary)":"transparent";
+      el.style.borderColor=on?"var(--color-border-secondary)":"var(--color-border-tertiary)";
+      el.style.fontWeight=on?"500":"400";
+    });
+    render();
+  };
+  window.setEdge=function(e){
+    state.edge=e;
+    [["zero","e-zero"],["circ","e-circ"]].forEach(function(p){
+      var el=document.getElementById(p[1]), on=p[0]===e;
+      el.style.background=on?"var(--color-background-secondary)":"transparent";
+      el.style.borderColor=on?"var(--color-border-secondary)":"var(--color-border-tertiary)";
+      el.style.fontWeight=on?"500":"400";
+    });
+    document.getElementById("edge-note").textContent= e==="zero"
+      ? "Zero-pad: samples outside [0,12] are 0. Linear convolution \u2014 output spans len(x)+len(h)\u22121 nonzero values, so the curve runs past the 13-sample window."
+      : "Circular: indices wrap modulo 13. What a raw FFT-based convolution computes \u2014 the sum stays within one period and the output wraps at the edges.";
+    render();
+  };
+
+  x=clone(datasets.fir.x);
+  h=clone(datasets.fir.h);
+  setMode("conv"); setData("fir"); setEdge("zero");
+})();
+</script>
+</body>
+</html>
