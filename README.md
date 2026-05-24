@@ -1,5 +1,5 @@
-![License](https://img.shields.io/github/license/spothana/dsp_viz)
-![Stars](https://img.shields.io/github/stars/spothana/dsp_viz)
+![License](https://img.shields.io/github/license/spothana/dsp_vis)
+![Stars](https://img.shields.io/github/stars/spothana/dsp_vis)
 
 # DSP Visualization
 
