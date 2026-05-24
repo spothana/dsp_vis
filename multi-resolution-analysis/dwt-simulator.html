@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discrete Wavelet Transform — Interactive Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Spline+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e1320;
+    --panel:#161d2e;
+    --panel-2:#1d2740;
+    --ink:#e8ecf4;
+    --ink-soft:#9aa6c0;
+    --ink-faint:#5f6c8a;
+    --line:#2a3550;
+    --approx:#4d9fff;      /* approximation - blue */
+    --detail:#ff8b4d;      /* detail - orange */
+    --accent:#ffd24d;      /* highlight - amber */
+    --good:#52d6a4;
+    --r:14px;
+    --mono:'Spline Sans Mono',ui-monospace,Menlo,monospace;
+    --sans:'Spline Sans',-apple-system,sans-serif;
+    --display:'Fraunces',Georgia,serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(900px 500px at 18% -6%, rgba(77,159,255,0.10), transparent 60%),
+      radial-gradient(800px 480px at 92% 8%, rgba(255,139,77,0.09), transparent 62%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:34px 26px 70px;}
+
+  header h1{
+    font-family:var(--display);
+    font-weight:600;
+    font-size:34px;
+    line-height:1.1;
+    margin:0 0 6px;
+    letter-spacing:-0.01em;
+  }
+  header h1 .em{
+    background:linear-gradient(100deg,var(--approx),var(--detail));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  header p{color:var(--ink-soft);font-size:14.5px;margin:0;max-width:62ch;line-height:1.55;}
+
+  .controls{
+    display:flex;flex-wrap:wrap;gap:10px 22px;align-items:flex-end;
+    margin:26px 0 8px;padding:16px 18px;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  }
+  .ctl{display:flex;flex-direction:column;gap:6px;}
+  .ctl label{font-size:11px;letter-spacing:0.07em;text-transform:uppercase;color:var(--ink-faint);}
+  .seg{display:flex;gap:3px;background:var(--bg);padding:3px;border-radius:9px;border:1px solid var(--line);}
+  .seg button{
+    font-family:var(--sans);font-size:12.5px;
+    border:none;background:transparent;color:var(--ink-soft);
+    padding:6px 11px;border-radius:6px;cursor:pointer;white-space:nowrap;
+    transition:background .14s,color .14s;
+  }
+  .seg button:hover{color:var(--ink);}
+  .seg button.on{background:var(--panel-2);color:var(--ink);box-shadow:0 1px 0 rgba(0,0,0,0.3);}
+  .seg button.on.approx-tint{color:#bcd9ff;}
+
+  .slider-ctl{min-width:190px;flex:1;}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;
+    background:var(--line);outline:none;margin:9px 0 2px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:16px;height:16px;border-radius:50%;background:var(--accent);
+    cursor:pointer;border:2px solid var(--bg);
+  }
+  .val{font-family:var(--mono);font-size:12px;color:var(--ink-soft);}
+
+  .btn{
+    font-family:var(--sans);font-size:13px;font-weight:500;
+    background:var(--panel-2);color:var(--ink);
+    border:1px solid var(--line);border-radius:9px;
+    padding:9px 15px;cursor:pointer;transition:background .14s,transform .08s;
+  }
+  .btn:hover{background:#26324f;}
+  .btn:active{transform:scale(0.98);}
+  .btn.primary{background:linear-gradient(100deg,#2f6dc4,#c4612f);border-color:transparent;color:#fff;}
+
+  .stage{
+    margin-top:14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:var(--r);
+    padding:20px 20px 8px;
+  }
+  .lane{
+    display:grid;grid-template-columns:118px 1fr;gap:14px;align-items:center;
+    padding:7px 0;border-bottom:1px dashed var(--line);
+  }
+  .lane:last-child{border-bottom:none;}
+  .lane-tag{display:flex;flex-direction:column;gap:2px;}
+  .lane-tag .name{font-family:var(--mono);font-size:13px;font-weight:500;}
+  .lane-tag .desc{font-size:10.5px;color:var(--ink-faint);line-height:1.3;}
+  .lane-tag .name.a{color:var(--approx);}
+  .lane-tag .name.d{color:var(--detail);}
+  .lane svg{display:block;width:100%;}
+
+  .pyramid-note{
+    font-size:12px;color:var(--ink-soft);margin:14px 2px 0;line-height:1.6;
+  }
+  .pyramid-note code{font-family:var(--mono);color:var(--accent);font-size:11.5px;}
+
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;}
+  @media(max-width:760px){.panels{grid-template-columns:1fr;}}
+  .card{
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--r);padding:16px 18px;
+  }
+  .card h3{
+    margin:0 0 4px;font-family:var(--display);font-weight:600;font-size:16px;
+  }
+  .card .sub{font-size:11.5px;color:var(--ink-faint);margin:0 0 12px;}
+  .stat-row{display:flex;gap:18px;flex-wrap:wrap;}
+  .stat{display:flex;flex-direction:column;gap:2px;}
+  .stat .k{font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-faint);}
+  .stat .v{font-family:var(--mono);font-size:21px;font-weight:500;}
+  .stat .v.good{color:var(--good);}
+  .stat .v.detail{color:var(--detail);}
+  .stat .v.approx{color:var(--approx);}
+
+  .energy-bar{height:9px;border-radius:5px;background:var(--bg);overflow:hidden;display:flex;margin-top:4px;}
+  .energy-bar i{display:block;height:100%;}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:10px 2px 0;font-size:11.5px;color:var(--ink-soft);}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .swatch{width:11px;height:11px;border-radius:3px;display:inline-block;}
+
+  footer{margin-top:22px;font-size:11.5px;color:var(--ink-faint);line-height:1.6;}
+  .kbd{font-family:var(--mono);background:var(--panel-2);border:1px solid var(--line);
+    border-radius:4px;padding:1px 5px;font-size:10.5px;color:var(--ink-soft);}
+  .hl{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Discrete Wavelet Transform — <span class="em">Interactive Simulator</span></h1>
+    <p>Run the Mallat pyramid level by level: each stage splits a signal into a smooth
+       <b style="color:var(--approx)">approximation</b> and a fine
+       <b style="color:var(--detail)">detail</b> band, then recurses on the approximation.
+       Threshold the detail coefficients to denoise, and reconstruct to see how well it holds up.</p>
+  </header>
+
+  <div class="controls">
+    <div class="ctl">
+      <label>Signal</label>
+      <div class="seg" id="seg-signal">
+        <button data-v="blocks">Blocks</button>
+        <button data-v="chirp">Chirp</button>
+        <button data-v="bumps">Bumps + noise</button>
+        <button data-v="ecg">ECG-like</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>Wavelet</label>
+      <div class="seg" id="seg-wavelet">
+        <button data-v="haar">Haar</button>
+        <button data-v="db4">Daubechies-4</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>Levels (J)</label>
+      <div class="seg" id="seg-levels">
+        <button data-v="1">1</button>
+        <button data-v="2">2</button>
+        <button data-v="3">3</button>
+        <button data-v="4">4</button>
+        <button data-v="5">5</button>
+      </div>
+    </div>
+    <div class="ctl slider-ctl">
+      <label>Denoise threshold <span class="val" id="thr-val">0.00</span></label>
+      <input type="range" id="thr" min="0" max="100" step="1" value="0">
+    </div>
+    <div class="ctl">
+      <label>Noise on signal <span class="val" id="noise-val">0.30</span></label>
+      <input type="range" id="noise" min="0" max="100" step="1" value="30" style="min-width:150px">
+    </div>
+    <button class="btn" id="reseed">New noise</button>
+  </div>
+
+  <div class="legend">
+    <span><i class="swatch" style="background:var(--ink)"></i> original / input</span>
+    <span><i class="swatch" style="background:var(--approx)"></i> approximation A — smooth, low-frequency</span>
+    <span><i class="swatch" style="background:var(--detail)"></i> detail D — fine, high-frequency</span>
+    <span><i class="swatch" style="background:var(--good)"></i> reconstruction</span>
+  </div>
+
+  <!-- DECOMPOSITION -->
+  <div class="stage" id="decomp-stage"></div>
+  <p class="pyramid-note" id="pyr-note"></p>
+
+  <div class="panels">
+    <div class="card">
+      <h3>Coefficient energy</h3>
+      <p class="sub">Where the signal's energy ends up across the pyramid. Compaction into few bands is what makes wavelets good for compression.</p>
+      <div id="energy-host"></div>
+    </div>
+    <div class="card">
+      <h3>Denoising &amp; reconstruction</h3>
+      <p class="sub">Detail coefficients below the threshold are zeroed (soft threshold), then the signal is rebuilt by the inverse DWT.</p>
+      <div class="stat-row">
+        <div class="stat"><span class="k">Coeffs kept</span><span class="v approx" id="st-kept">—</span></div>
+        <div class="stat"><span class="k">Zeroed</span><span class="v detail" id="st-zero">—</span></div>
+        <div class="stat"><span class="k">Reconstruction error</span><span class="v" id="st-err">—</span></div>
+        <div class="stat"><span class="k">SNR vs clean</span><span class="v good" id="st-snr">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECONSTRUCTION -->
+  <div class="stage" id="recon-stage"></div>
+
+  <footer>
+    The transform is computed with periodic boundary handling and orthonormal filters,
+    so with a zero threshold the reconstruction is exact to machine precision.
+    Haar is piecewise-constant (sharp on edges); Daubechies-4 is smoother (better on
+    gradual signals). Energy compaction — most of the signal living in a few coefficients —
+    is the property compression and denoising both exploit.
+    <br>Tip: set a signal with noise, raise <span class="hl">Levels</span> to 4–5, then raise the
+    <span class="hl">threshold</span> and watch the reconstruction stay clean while the noise drops away.
+  </footer>
+
+</div>
+
+<script>
+"use strict";
+(function(){
+
+  // ---------- wavelet filters (orthonormal) ----------
+  var R2 = Math.SQRT1_2;
+  var FILTERS = {
+    haar: { lo:[R2, R2], hi:[R2, -R2] },
+    db4: (function(){
+      var s3=Math.sqrt(3), d=4*Math.sqrt(2);
+      var lo=[(1+s3)/d,(3+s3)/d,(3-s3)/d,(1-s3)/d];
+      var hi=[lo[3],-lo[2],lo[1],-lo[0]];
+      return {lo:lo,hi:hi};
+    })()
+  };
+
+  // ---------- core DWT (periodic) ----------
+  function dwtStep(sig, lo, hi){
+    var n=sig.length, half=n>>1, h=lo.length;
+    var a=new Array(half).fill(0), d=new Array(half).fill(0);
+    for(var i=0;i<half;i++){
+      for(var k=0;k<h;k++){
+        var idx=(2*i+k)%n;
+        a[i]+=sig[idx]*lo[k];
+        d[i]+=sig[idx]*hi[k];
+      }
+    }
+    return {a:a,d:d};
+  }
+  function idwtStep(a,d,lo,hi){
+    var half=a.length, n=half*2, h=lo.length;
+    var out=new Array(n).fill(0);
+    for(var i=0;i<half;i++){
+      for(var k=0;k<h;k++){
+        var idx=(2*i+k)%n;
+        out[idx]+=a[i]*lo[k]+d[i]*hi[k];
+      }
+    }
+    return out;
+  }
+  function decompose(sig, filt, J){
+    var lo=filt.lo, hi=filt.hi;
+    var cur=sig.slice(), details=[], approx=[cur.slice()];
+    for(var j=0;j<J;j++){
+      var s=dwtStep(cur,lo,hi);
+      details.push(s.d);
+      approx.push(s.a.slice());
+      cur=s.a;
+    }
+    return {details:details, finalApprox:cur, approxChain:approx};
+  }
+  function reconstruct(finalApprox, details, filt){
+    var lo=filt.lo, hi=filt.hi;
+    var cur=finalApprox.slice();
+    for(var j=details.length-1;j>=0;j--){
+      cur=idwtStep(cur,details[j],lo,hi);
+    }
+    return cur;
+  }
+
+  // ---------- signal generators ----------
+  var Nsamp=256;
+  function rngSeeded(seed){
+    var s=seed>>>0;
+    return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; };
+  }
+  function genClean(kind){
+    var x=new Array(Nsamp), t;
+    for(var i=0;i<Nsamp;i++){
+      t=i/Nsamp;
+      if(kind==="blocks"){
+        var v=0;
+        var pts=[[0.1,3],[0.25,-2.5],[0.4,4],[0.55,-1.5],[0.7,2.5],[0.82,-3],[0.92,1.5]];
+        var lvl=0;
+        for(var p=0;p<pts.length;p++){ if(t>=pts[p][0]) lvl=pts[p][1]; }
+        x[i]=lvl;
+      } else if(kind==="chirp"){
+        x[i]=2.4*Math.sin(2*Math.PI*(3+34*t)*t);
+      } else if(kind==="bumps"){
+        var b=0, centers=[[0.18,0.03,3.4],[0.38,0.05,2.6],[0.55,0.02,3.8],[0.74,0.06,2.2],[0.88,0.025,3.0]];
+        for(var c=0;c<centers.length;c++){
+          var dt=(t-centers[c][0])/centers[c][1];
+          b+=centers[c][2]*Math.exp(-dt*dt);
+        }
+        x[i]=b-1.5;
+      } else { // ecg-like
+        var e=0;
+        for(var beat=0;beat<5;beat++){
+          var bc=(beat+0.5)/5;
+          var q=(t-bc)/0.012;
+          e+=3.6*Math.exp(-q*q);                       // R spike
+          var pq=(t-(bc-0.045))/0.02;
+          e+=0.7*Math.exp(-pq*pq);                     // P wave
+          var tq=(t-(bc+0.07))/0.035;
+          e+=1.0*Math.exp(-tq*tq);                     // T wave
+        }
+        x[i]=e-0.9+0.25*Math.sin(2*Math.PI*1.2*t);     // + baseline wander
+      }
+    }
+    return x;
+  }
+
+  // ---------- state ----------
+  var state={
+    signal:"bumps", wavelet:"haar", levels:3,
+    threshold:0, noise:0.30, seed:7
+  };
+  var cleanSig=[], noisySig=[];
+
+  function buildSignal(){
+    cleanSig=genClean(state.signal);
+    var rnd=rngSeeded(state.seed);
+    noisySig=cleanSig.map(function(v){
+      // Box-Muller gaussian
+      var u1=rnd()||1e-9, u2=rnd();
+      var g=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+      return v+state.noise*g*2.2;
+    });
+  }
+
+  // ---------- thresholding ----------
+  function softThreshold(details, thr){
+    var kept=0, zeroed=0;
+    var out=details.map(function(band){
+      return band.map(function(c){
+        if(Math.abs(c)<=thr){ zeroed++; return 0; }
+        kept++;
+        return c-Math.sign(c)*thr;   // soft threshold
+      });
+    });
+    return {bands:out, kept:kept, zeroed:zeroed};
+  }
+
+  // ---------- drawing ----------
+  var SVGNS="http://www.w3.org/2000/svg";
+  function el(tag,attrs){
+    var e=document.createElementNS(SVGNS,tag);
+    for(var k in attrs) e.setAttribute(k,attrs[k]);
+    return e;
+  }
+  function plot(host, data, color, opts){
+    opts=opts||{};
+    var W=opts.w||820, H=opts.h||46, pad=3;
+    var svg=el("svg",{viewBox:"0 0 "+W+" "+H,preserveAspectRatio:"none"});
+    svg.style.height=H+"px";
+    var n=data.length;
+    var mx=opts.scale||Math.max(1e-6,Math.max.apply(null,data.map(Math.abs)));
+    var mid=H/2;
+    // zero axis
+    svg.appendChild(el("line",{x1:pad,y1:mid,x2:W-pad,y2:mid,
+      stroke:"var(--line)","stroke-width":0.6}));
+    var step=(W-2*pad)/(n-1);
+    var dpath="";
+    for(var i=0;i<n;i++){
+      var px=pad+i*step;
+      var py=mid-(data[i]/mx)*(mid-pad);
+      dpath+=(i?"L":"M")+px.toFixed(2)+" "+py.toFixed(2)+" ";
+    }
+    if(opts.stem){
+      // stem style for short coefficient bands
+      for(var j=0;j<n;j++){
+        var sx=pad+j*step;
+        var sy=mid-(data[j]/mx)*(mid-pad);
+        svg.appendChild(el("line",{x1:sx,y1:mid,x2:sx,y2:sy,
+          stroke:color,"stroke-width":Math.max(0.7,step*0.5),"stroke-linecap":"round",opacity:0.9}));
+      }
+    } else {
+      svg.appendChild(el("path",{d:dpath,fill:"none",stroke:color,
+        "stroke-width":opts.thick||1.4,"stroke-linejoin":"round"}));
+    }
+    host.appendChild(svg);
+    return svg;
+  }
+  function lane(host, name, nameClass, desc, data, color, opts){
+    var row=document.createElement("div"); row.className="lane";
+    var tag=document.createElement("div"); tag.className="lane-tag";
+    var nm=document.createElement("div"); nm.className="name "+(nameClass||"");
+    nm.textContent=name;
+    var ds=document.createElement("div"); ds.className="desc"; ds.textContent=desc;
+    tag.appendChild(nm); tag.appendChild(ds);
+    var plotHost=document.createElement("div");
+    row.appendChild(tag); row.appendChild(plotHost);
+    host.appendChild(row);
+    plot(plotHost,data,color,opts);
+  }
+
+  // ---------- main render ----------
+  function render(){
+    var filt=FILTERS[state.wavelet];
+    var J=state.levels;
+    var dec=decompose(noisySig, filt, J);
+
+    // global scale for detail bands so cross-level comparison is honest
+    var allDet=[].concat.apply([],dec.details).map(Math.abs);
+    var detScale=Math.max(0.001,Math.max.apply(null,allDet));
+    var sigScale=Math.max.apply(null,noisySig.map(Math.abs));
+
+    // ---- decomposition stage ----
+    var ds=document.getElementById("decomp-stage");
+    ds.innerHTML="";
+    lane(ds,"x[n]","","input signal ("+Nsamp+" samples)",noisySig,"var(--ink)",
+      {scale:sigScale,thick:1.2});
+    for(var j=0;j<J;j++){
+      var aLabel="A"+(j+1);
+      var dLabel="D"+(j+1);
+      lane(ds,dLabel,"d","detail \u2014 scale "+(j+1)+"  ("+dec.details[j].length+" coeffs)",
+        dec.details[j],"var(--detail)",{stem:true,scale:detScale});
+      if(j===J-1){
+        lane(ds,aLabel,"a","approximation \u2014 coarsest ("+dec.finalApprox.length+" coeffs)",
+          dec.finalApprox,"var(--approx)",{stem:true,scale:sigScale});
+      }
+    }
+
+    document.getElementById("pyr-note").innerHTML=
+      "Mallat pyramid: each level low-pass filters and downsamples by 2. "+
+      "Output coefficients <code>{A"+J+", D"+J+", \u2026, D1}</code> total "+
+      (dec.finalApprox.length + dec.details.reduce(function(a,b){return a+b.length;},0))+
+      " values \u2014 same as the input length. The transform just <i>reorganizes</i> the signal across scales.";
+
+    // ---- threshold + reconstruct ----
+    var maxCoef=detScale;
+    var thr=state.threshold/100*maxCoef;
+    document.getElementById("thr-val").textContent=thr.toFixed(2);
+    var th=softThreshold(dec.details, thr);
+    var recon=reconstruct(dec.finalApprox, th.bands, filt);
+
+    // ---- reconstruction stage ----
+    var rs=document.getElementById("recon-stage");
+    rs.innerHTML="";
+    lane(rs,"clean","","ground-truth signal (no noise)",cleanSig,"var(--ink-soft)",
+      {scale:sigScale,thick:1.1});
+    lane(rs,"x[n]","d","noisy input fed to the DWT",noisySig,"var(--detail)",
+      {scale:sigScale,thick:1.0});
+    lane(rs,"x\u0302[n]","a","reconstruction after thresholding",recon,"var(--good)",
+      {scale:sigScale,thick:1.5});
+
+    // ---- stats ----
+    var nT=th.kept+th.zeroed;
+    document.getElementById("st-kept").textContent=th.kept+" / "+nT;
+    document.getElementById("st-zero").textContent=
+      th.zeroed+"  ("+Math.round(100*th.zeroed/nT)+"%)";
+
+    var errSq=0, sig0Sq=0;
+    for(var i=0;i<Nsamp;i++){
+      var e=recon[i]-noisySig[i]; errSq+=e*e;
+      sig0Sq+=noisySig[i]*noisySig[i];
+    }
+    var rmse=Math.sqrt(errSq/Nsamp);
+    document.getElementById("st-err").textContent=rmse.toFixed(3);
+
+    // SNR of reconstruction vs CLEAN signal (denoising quality)
+    var noisePow=0, sigPow=0;
+    for(var i2=0;i2<Nsamp;i2++){
+      var d2=recon[i2]-cleanSig[i2];
+      noisePow+=d2*d2; sigPow+=cleanSig[i2]*cleanSig[i2];
+    }
+    var snr=10*Math.log10(sigPow/Math.max(1e-9,noisePow));
+    document.getElementById("st-snr").textContent=snr.toFixed(1)+" dB";
+
+    renderEnergy(dec);
+  }
+
+  function renderEnergy(dec){
+    var host=document.getElementById("energy-host");
+    host.innerHTML="";
+    var bands=[];
+    var totE=0;
+    for(var j=0;j<dec.details.length;j++){
+      var e=dec.details[j].reduce(function(a,c){return a+c*c;},0);
+      bands.push({label:"D"+(j+1),e:e,color:"var(--detail)"});
+      totE+=e;
+    }
+    var aE=dec.finalApprox.reduce(function(a,c){return a+c*c;},0);
+    bands.unshift({label:"A"+dec.details.length,e:aE,color:"var(--approx)"});
+    totE+=aE;
+
+    bands.forEach(function(b){
+      var pct=100*b.e/Math.max(1e-9,totE);
+      var row=document.createElement("div");
+      row.style.cssText="margin:8px 0;";
+      var top=document.createElement("div");
+      top.style.cssText="display:flex;justify-content:space-between;font-size:11.5px;"+
+        "font-family:var(--mono);color:var(--ink-soft);";
+      var nm=document.createElement("span"); nm.textContent=b.label;
+      nm.style.color=b.color;
+      var pc=document.createElement("span"); pc.textContent=pct.toFixed(1)+"%";
+      top.appendChild(nm); top.appendChild(pc);
+      var bar=document.createElement("div"); bar.className="energy-bar";
+      var fill=document.createElement("i");
+      fill.style.width=Math.max(0.4,pct)+"%";
+      fill.style.background=b.color;
+      bar.appendChild(fill);
+      row.appendChild(top); row.appendChild(bar);
+      host.appendChild(row);
+    });
+  }
+
+  // ---------- wiring ----------
+  function initSeg(id, key, cast){
+    var seg=document.getElementById(id);
+    seg.querySelectorAll("button").forEach(function(btn){
+      btn.addEventListener("click",function(){
+        var v=cast?cast(btn.dataset.v):btn.dataset.v;
+        state[key]=v;
+        seg.querySelectorAll("button").forEach(function(b){b.classList.remove("on");});
+        btn.classList.add("on");
+        if(key==="signal"||key==="noise"||key==="seed") buildSignal();
+        render();
+      });
+      if((cast?cast(btn.dataset.v):btn.dataset.v)===state[key]) btn.classList.add("on");
+    });
+  }
+  initSeg("seg-signal","signal");
+  initSeg("seg-wavelet","wavelet");
+  initSeg("seg-levels","levels",function(v){return parseInt(v,10);});
+
+  document.getElementById("thr").addEventListener("input",function(){
+    state.threshold=parseInt(this.value,10);
+    render();
+  });
+  var noiseEl=document.getElementById("noise");
+  noiseEl.addEventListener("input",function(){
+    state.noise=parseInt(this.value,10)/100;
+    document.getElementById("noise-val").textContent=state.noise.toFixed(2);
+    buildSignal(); render();
+  });
+  document.getElementById("reseed").addEventListener("click",function(){
+    state.seed=(Math.random()*1e6)|0;
+    buildSignal(); render();
+  });
+
+  buildSignal();
+  render();
+})();
+</script>
+</body>
+</html>
